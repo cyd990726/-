@@ -1,0 +1,14 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Local Python environments
+venv/
+.venv/
+
+# Training artifacts
+algorithm/**/checkpoints/
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
