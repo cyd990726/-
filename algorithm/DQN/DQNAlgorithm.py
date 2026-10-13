@@ -108,7 +108,7 @@ class DQN:
             return self.q_network(state).argmax(dim=1).item()
 
     # 从回放池采样一批经验，并更新一次在线网络。
-    def update(self):
+    def update(self, cur_steps, checkpoint_inter, checkpoint_dir):
         # 先从经验缓冲池采样
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.config.batch_size)
         states = th.tensor(states, dtype=th.float32).to(self.config.device)
@@ -129,6 +129,11 @@ class DQN:
         loss.backward() # 反向传播重新计算梯度
         self.optimizer.step() # 根据刚刚计算出的梯度更新网络参数
 
+        if cur_steps % checkpoint_inter == 0:
+            checkpoint_path = checkpoint_dir / f"dqn_mountaincar_step_{cur_steps}.pt"
+            self.save(checkpoint_path)
+            print(f"Model saved to {checkpoint_path}")
+
     # 更新网络参数
     def update_target_network(self):
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -139,8 +144,13 @@ class DQN:
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         th.save(self.q_network.state_dict(), checkpoint_path)
 
-    def eval(self, checkpoint_path: str | Path, render_fps: int = 30) -> float:
-        """加载模型，贪心执行并渲染一个完整的 CartPole 回合。"""
+    def eval(
+        self,
+        checkpoint_path: str | Path,
+        env_id: str,
+        render_fps: int = 30,
+    ) -> float:
+        """加载模型，在指定环境中贪心执行并渲染一个完整回合。"""
         if render_fps <= 0:
             raise ValueError("render_fps 必须大于 0")
 
@@ -158,7 +168,7 @@ class DQN:
         self.q_network.eval()
 
         # Python 3.12 环境已安装 pygame，直接使用 Gymnasium 原生窗口渲染。
-        env = gym.make("CartPole-v1", render_mode="human")
+        env = gym.make(env_id, render_mode="human")
         state, _ = env.reset()
         episode_reward = 0.0
         done = False

@@ -8,12 +8,14 @@ from DQNAlgorithm import DQN
 CHECKPOINT_INTERVAL = 1_000
 CHECKPOINT_DIR = Path(__file__).resolve().parent / "checkpoints"
 
-env = gym.make("CartPole-v1")
+ENV_ID = "MountainCar-v0"
+env = gym.make(ENV_ID)
 
 config = TrainConfig(
     # 网络参数
     state_dim = env.observation_space.shape[0],
-    action_dim = env.action_space.n
+    action_dim = env.action_space.n,
+    max_steps = 2_000_000,
 )
 
 agent = DQN(config=config)
@@ -45,14 +47,14 @@ while total_steps < config.max_steps:
 
     if len(agent.replay_buffer) >= config.batch_size:
         # 说明可以开始采样更新网络了
-        agent.update()
+        agent.update(total_steps, CHECKPOINT_INTERVAL, CHECKPOINT_DIR)
 
     if total_steps % config.target_update_freq == 0:
         agent.update_target_network()
 
     # 每 1,000 个环境交互步保存一次，文件名包含当前训练步数。
     if total_steps % CHECKPOINT_INTERVAL == 0:
-        checkpoint_path = CHECKPOINT_DIR / f"dqn_cartpole_step_{total_steps}.pt"
+        checkpoint_path = CHECKPOINT_DIR / f"dqn_mountaincar_step_{total_steps}.pt"
         agent.save(checkpoint_path)
         print(f"Model saved to {checkpoint_path}")
 
@@ -72,7 +74,7 @@ env.close()
 
 # 若训练在非 1,000 的整数倍停止，额外保存最后一次参数。
 if total_steps % CHECKPOINT_INTERVAL != 0:
-    checkpoint_path = CHECKPOINT_DIR / f"dqn_cartpole_step_{total_steps}.pt"
+    checkpoint_path = CHECKPOINT_DIR / f"dqn_mountaincar_step_{total_steps}.pt"
     agent.save(checkpoint_path)
     print(f"Final model saved to {checkpoint_path}")
 
