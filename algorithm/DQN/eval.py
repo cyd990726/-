@@ -16,7 +16,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=Path,
-        default=Path("checkpoints/dqn_mountaincar_step_50000.pt"),
+        default=Path("checkpoints/dqn_mountaincar_step_500000.pt"),
     )
     parser.add_argument("--env", default="MountainCar-v0", help="Must match the environment used to train the model.")
     parser.add_argument("--fps", type=int, default=30)

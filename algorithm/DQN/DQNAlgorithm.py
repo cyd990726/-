@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 
 import gymnasium as gym
+import numpy as np
 import torch as th
 from torch import Tensor, nn
 
@@ -30,6 +31,7 @@ class QNetwork(nn.Module):
     def forward(self, states: Tensor) -> Tensor:
         """返回 Q(s, ·)，形状为 ``(batch_size, action_dim)``。"""
         return self.layers(states)
+
 
 class ReplayBuffer:
     # 经验回放缓冲区(默认10000条经验)
@@ -111,16 +113,18 @@ class DQN:
     def update(self, cur_steps, checkpoint_inter, checkpoint_dir):
         # 先从经验缓冲池采样
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.config.batch_size)
-        states = th.tensor(states, dtype=th.float32).to(self.config.device)
+        states = th.as_tensor(np.asarray(states), dtype=th.float32, device=self.config.device)
         actions = th.tensor(actions, dtype=th.int64).to(self.config.device)
         rewards = th.tensor(rewards, dtype=th.float32).to(self.config.device)
-        next_states = th.tensor(next_states, dtype=th.float32).to(self.config.device)
+        next_states = th.as_tensor(np.asarray(next_states), dtype=th.float32, device=self.config.device)
         dones = th.tensor(dones, dtype=th.float32).to(self.config.device)
         # 计算当前 Q 值
-        curr_q_vals = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-  
+        out = self.q_network(states)
+        curr_q_vals = out.gather(1, actions.unsqueeze(1)).squeeze(1)
         with th.no_grad():
-            next_q_vals = self.target_network(next_states).max(1)[0]
+            # Double DQN：在线网络选择 next action，目标网络评估这个 action。
+            max_q_actions = self.q_network(next_states).argmax(dim=-1)
+            next_q_vals = self.target_network(next_states).gather(1, max_q_actions.unsqueeze(1)).squeeze(1)
             target_q_vals = rewards + self.config.gamma * next_q_vals * (1 - dones)
         # 计算损失
         loss = nn.functional.mse_loss(curr_q_vals, target_q_vals)
@@ -132,7 +136,7 @@ class DQN:
         if cur_steps % checkpoint_inter == 0:
             checkpoint_path = checkpoint_dir / f"dqn_mountaincar_step_{cur_steps}.pt"
             self.save(checkpoint_path)
-            print(f"Model saved to {checkpoint_path}")
+            print(f"Model saved to {checkpoint_path}, loss equal {loss}")
 
     # 更新网络参数
     def update_target_network(self):

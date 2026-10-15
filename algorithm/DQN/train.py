@@ -15,12 +15,31 @@ config = TrainConfig(
     # 网络参数
     state_dim = env.observation_space.shape[0],
     action_dim = env.action_space.n,
-    max_steps = 2_000_000,
+    max_steps = 500_000,
 )
 
 agent = DQN(config=config)
 
+
+def shape_mountaincar_reward(state, reward, next_state, terminated):
+    """为 MountainCar 提供更密集的训练信号。"""
+    previous_position = float(state[0])
+    position = float(next_state[0])
+    velocity = float(next_state[1])
+
+    shaped_reward = reward
+    shaped_reward += 10.0 * (position - previous_position)
+    shaped_reward += 2.0 * (position + 0.5)
+    shaped_reward += 10.0 * abs(velocity)
+
+    if terminated:
+        shaped_reward += 100.0
+
+    return shaped_reward
+
+
 episode_reward = 0.0
+episode_env_reward = 0.0
 episode_count = 0
 total_steps = 0
 
@@ -36,13 +55,15 @@ while total_steps < config.max_steps:
     action = agent.choose_action(state, epsilon)
     next_state, reward, terminated, truncated, _ = env.step(action)
     done = terminated or truncated
+    shaped_reward = shape_mountaincar_reward(state, reward, next_state, terminated)
 
     # 将状态转移样本加入回放池
-    agent.replay_buffer.add(state, action, reward, next_state, terminated)
+    agent.replay_buffer.add(state, action, shaped_reward, next_state, terminated)
 
     # 状态转移
     state = next_state
-    episode_reward += reward
+    episode_reward += shaped_reward
+    episode_env_reward += reward
     total_steps += 1
 
     if len(agent.replay_buffer) >= config.batch_size:
@@ -64,11 +85,13 @@ while total_steps < config.max_steps:
         print(
             f"episode={episode_count}, "
             f"steps={total_steps}, "
-            f"reward={episode_reward:.0f}, "
+            f"reward={episode_reward:.1f}, "
+            f"env_reward={episode_env_reward:.0f}, "
             f"epsilon={epsilon:.3f}"
         )
         state, _ = env.reset()
         episode_reward = 0.0
+        episode_env_reward = 0.0
 
 env.close()
 
